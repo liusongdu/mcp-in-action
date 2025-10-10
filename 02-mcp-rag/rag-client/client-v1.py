@@ -47,6 +47,7 @@ class RagClient:
         # 再退出 stdio_client 上下文
         await self.transport.__aexit__(None, None, None)
 
+
 async def main():
     print(">>> start main")              # 1
     if len(sys.argv) < 2:

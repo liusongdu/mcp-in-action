@@ -1,26 +1,39 @@
 # cd 02-mcp-rag/rag-client
 # source .venv/bin/activate
 # uv run client.py ../rag-server/server.py
+"""
+Update .env
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+aws_access_key_id
+aws_secret_access_key
+aws_session_token
+"""
 import sys, asyncio, os, json
 from mcp import ClientSession
 from mcp.client.stdio import stdio_client, StdioServerParameters
-from openai import OpenAI
+# from openai import OpenAI
+from anthropic import AnthropicBedrock
 from dotenv import load_dotenv
 
+
 load_dotenv()
+# path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "source")  # cloud-sec-detections\security-account-budget-management\source
+model_id="anthropic.claude-3-5-sonnet-20241022-v2:0"
+
 
 class RagClient:
     def __init__(self):
         self.session = None
         self.transport = None   # 用来保存 stdio_client 的上下文管理器
-        self.client = OpenAI()
-
+        # self.client = OpenAI()
+        self.client = AnthropicBedrock(aws_region="us-east-1")
         self.tools = None  # 将在 connect 时从服务器获取
 
     async def connect(self, server_script: str):
         # 1) 构造参数对象
         params = StdioServerParameters(
-            command="/home/huangj2/Documents/mcp-in-action/02-mcp-rag/rag-server/.venv/bin/python",
+            command="/home/ubuntu/personal/mcp-in-action/02-mcp-rag/rag-server/.venv/bin/python",
             args=[server_script],
         )
         # 2) 保存上下文管理器
@@ -50,18 +63,43 @@ class RagClient:
             {"role": "system", "content": "你是一个专业的医学助手，请根据提供的医学文档回答问题。如果用户的问题需要查询医学知识，请使用列表中的工具来获取相关信息。"},
             {"role": "user", "content": q}
         ]
-        
+        prompt = f"""
+        你是一个专业的医学助手，请根据提供的医学文档回答问题。如果用户的问题需要查询医学知识，请使用列表中的工具来获取相关信息。
+        Based on the retrieved documents, please answer the question:
+
+        Question: {q}
+
+        Please provide a comprehensive answer based on the retrieved information."""
+
         while True:
             try:
                 # 调用 OpenAI API
-                response = self.client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=messages,
-                    tools=self.tools,
-                    tool_choice="auto"
-                )
+                # response = self.client.chat.completions.create(
+                #     model="gpt-4o",
+                #     messages=messages,
+                #     tools=self.tools,
+                #     tool_choice="auto"
+                # )
                 
-                message = response.choices[0].message
+                # message = response.choices[0].message
+
+                response = self.client.messages.create(
+                    model="us.anthropic.claude-3-5-sonnet-20241022-v2:0",  # This would be the model used
+                    max_tokens=1000,
+                    messages=[
+                        {"role": "user", "content": prompt}
+                    ]
+                    # [
+                    #     {
+                    #         "role": "user",
+                    #         "content": messages
+                    #     }
+                    # ]
+                )
+                print(response)
+                print(response.content)
+                message = response.content[0].text
+
                 messages.append(message)
                 
                 # 如果没有工具调用，直接返回回答
@@ -97,6 +135,7 @@ class RagClient:
                 await self.transport.__aexit__(None, None, None)
         except Exception as e:
             print(f"关闭连接时发生错误: {str(e)}")
+
 
 async def main():
     print(">>> 开始初始化 RAG 系统")
@@ -137,6 +176,7 @@ async def main():
 
     await client.close()
     print(">>> 系统已关闭")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

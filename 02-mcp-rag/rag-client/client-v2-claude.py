@@ -1,13 +1,17 @@
 # cd 02-mcp-rag/rag-client
 # source .venv/bin/activate
 # uv run client.py ../rag-server/server.py
-import sys, asyncio
+import asyncio
+import os
+import sys
+
 from mcp import ClientSession
 from mcp.client.stdio import stdio_client, StdioServerParameters
 from anthropic import Anthropic
 from dotenv import load_dotenv
 
 load_dotenv()
+
 
 class RagClient:
     def __init__(self):
@@ -19,7 +23,7 @@ class RagClient:
         # 1) 构造参数对象
         params = StdioServerParameters(
             # command="uv",
-            command="/home/huangj2/Documents/mcp-in-action/02-mcp-rag/rag-server/.venv/bin/python",
+            command="/home/ubuntu/personal/mcp-in-action/02-mcp-rag/rag-server/.venv/bin/python",
             # args=["run", server_script],
             # args=["-u",server_script], # -u的意思是unbuffered，禁用Python输出缓冲，确保实时输出
             args=[server_script],
