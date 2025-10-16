@@ -10,6 +10,7 @@ aws_secret_access_key
 aws_session_token
 """
 import sys, asyncio, os, json
+import logging
 from mcp import ClientSession
 from mcp.client.stdio import stdio_client, StdioServerParameters
 # from openai import OpenAI
@@ -17,9 +18,19 @@ from anthropic import AnthropicBedrock
 from dotenv import load_dotenv
 
 
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
 load_dotenv()
 # path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "source")  # cloud-sec-detections\security-account-budget-management\source
 model_id="anthropic.claude-3-5-sonnet-20241022-v2:0"
+
+
+def append_json_object_ndjson(file_path, data):
+    """Append one JSON object per line (NDJSON format)."""
+    with open(file_path, "a", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False)
+        f.write("\n")
 
 
 class RagClient:
@@ -33,7 +44,8 @@ class RagClient:
     async def connect(self, server_script: str):
         # 1) 构造参数对象
         params = StdioServerParameters(
-            command="/home/ubuntu/personal/mcp-in-action/02-mcp-rag/rag-server/.venv/bin/python",
+            # command="/home/ubuntu/personal/mcp-in-action/02-mcp-rag/rag-server/.venv/bin/python",  # cov sandbox
+            command="/Users/leodu/code/study/mcp-in-action/02-mcp-rag/rag-server/.venv/bin/python",  # mac mini
             args=[server_script],
         )
         # 2) 保存上下文管理器
@@ -48,14 +60,18 @@ class RagClient:
         # 5) 获取服务器端定义的工具
         resp = await self.session.list_tools()
         self.tools = [{
-            "type": "function",
-            "function": {
-                "name": tool.name,
-                "description": tool.description,
-                "parameters": tool.inputSchema
-            }
+            # "type": "function",
+            # "function": {
+            #     "name": tool.name,
+            #     "description": tool.description,
+            #     "parameters": tool.inputSchema
+            # }
+            "name": tool.name,
+            "description": tool.description,
+            "input_schema": tool.inputSchema
         } for tool in resp.tools]
-        print("可用工具：", [t["function"]["name"] for t in self.tools])
+        # print("可用工具：", [t["function"]["name"] for t in self.tools])
+        print("可用工具：", [t["name"] for t in self.tools])
 
     async def query(self, q: str):
         # 初始化对话消息
@@ -83,12 +99,22 @@ class RagClient:
                 
                 # message = response.choices[0].message
 
+                # 您好，高血压怎么办？
                 response = self.client.messages.create(
-                    model="us.anthropic.claude-3-5-sonnet-20241022-v2:0",  # This would be the model used
+                    model="us.anthropic.claude-3-5-sonnet-20241022-v2:0",
                     max_tokens=1000,
                     messages=[
                         {"role": "user", "content": prompt}
-                    ]
+                    ],
+                    tools=self.tools,
+                    # [
+                    #     {
+                    #         "name": "noop",
+                    #         "description": "Placeholder tool to keep MCP flow consistent.",
+                    #         "input_schema": {"type": "object", "properties": {}, "additionalProperties": False}
+                    #     }
+                    # ],
+                    tool_choice={"type": "auto"}
                     # [
                     #     {
                     #         "role": "user",
@@ -96,18 +122,34 @@ class RagClient:
                     #     }
                     # ]
                 )
-                print(response)
-                print(response.content)
+                print("=== dir(response) ===")
+                for attr in dir(response):
+                    if not attr.startswith("_"):  # skip internal dunder methods
+                        print(attr)
+                print(response.schema)
+                print(response.to_json)
+
+                print("=== dir(response.content[0]) ===")
+                for attr in dir(response.content[0]):
+                    if not attr.startswith("_"):  # skip internal dunder methods
+                        print(attr)
+                logger.info(response)
+                logger.info(response.content)
+                for each in response.content:
+                    append_json_object_ndjson("log.json", {"response": each.text})
+
                 message = response.content[0].text
 
                 messages.append(message)
                 
                 # 如果没有工具调用，直接返回回答
-                if not message.tool_calls:
+                # if not message.tool_calls:  # OpenAI-style tool_calls
+                if not message.tool_use:  # Anthropic
                     return message.content
                     
                 # 处理工具调用
-                for tool_call in message.tool_calls:
+                # for tool_call in message.tool_calls:
+                for tool_call in message.tool_use:
                     # 解析工具参数
                     args = json.loads(tool_call.function.arguments)
                     # 调用工具

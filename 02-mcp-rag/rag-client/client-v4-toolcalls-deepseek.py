@@ -22,7 +22,7 @@ class RagClient:
     async def connect(self, server_script: str):
         # 1) 构造参数对象
         params = StdioServerParameters(
-            command="/home/huangj2/Documents/mcp-in-action/02-mcp-rag/rag-server/.venv/bin/python",
+            command="/Users/leodu/code/study/mcp-in-action/02-mcp-rag/rag-server/.venv/bin/python",
             args=[server_script],
         )
         # 2) 保存上下文管理器
@@ -99,6 +99,7 @@ class RagClient:
                 await self.transport.__aexit__(None, None, None)
         except Exception as e:
             print(f"关闭连接时发生错误: {str(e)}")
+
 
 async def main():
     print(">>> 开始初始化 RAG 系统")
